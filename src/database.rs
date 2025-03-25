@@ -29,7 +29,7 @@ impl Database {
         self.data.remove(&key)
     }
 
-    fn save_data(&self, path: &str) -> std::io::Result<()> {
+    pub fn save_data(&self, path: &str) -> std::io::Result<()> {
         fs::create_dir_all("data")?;
         let encoded : Vec<u8> = bincode::serialize(self).unwrap();
         let mut file = fs::File::create(path)?;
@@ -37,12 +37,21 @@ impl Database {
         Ok(())
     }
 
-    fn load_data(path: &str) -> Result<Self> {
-        let mut file = fs::File::open(path)?;
+    pub fn load_data(path: &str) -> Result<Self> {
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)
+            .unwrap();
+
         let mut contents = Vec::new();
         file.read_to_end(&mut contents)?;
-        let data = bincode::deserialize(&contents).unwrap();
-        Ok(data)
+
+        match bincode::deserialize(&contents) {
+            Ok(data) => Ok(data),
+            Err(_) => Ok(Self::new()),
+        }
     }
 }
 

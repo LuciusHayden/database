@@ -7,7 +7,8 @@ fn main() {
 
     let parser = Parser::new();
     let command = parser.parse("INSERT TEST 5".to_string());
-    let mut database = Database::new();
+    //let mut database = Database::new();
+    let mut database = Database::load_data("data/database.db").unwrap();
 
     let _result = match command {
         Command::INSERT(key, value) => database.insert(key, value),
@@ -15,6 +16,8 @@ fn main() {
         Command::DELETE(key) => database.delete(key),
         _ => None,
     };
+
+    database.save_data("data/database.db").unwrap();
 }
 
 
