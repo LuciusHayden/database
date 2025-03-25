@@ -9,13 +9,12 @@ fn main() {
     let command = parser.parse("INSERT TEST 5".to_string());
     let mut database = Database::new();
 
-    match command {
+    let _result = match command {
         Command::INSERT(key, value) => database.insert(key, value),
         Command::GET(key) => database.get(key),
         Command::DELETE(key) => database.delete(key),
-        Command::ERROR()=> database.error(),
-    }
-
+        _ => None,
+    };
 }
 
 

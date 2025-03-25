@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
+use std::option::Option;
 
 use bincode;
-use std::fs::File;
+use std::fs;
+use std::io::Read;
 use std::io::{Result, Write};
 
 
-#[derive(Serialize, Deserialize, Debug, bincode::Encode, bincode::Decode)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Database {
     data: BTreeMap<String, String>,
 }
@@ -15,41 +17,77 @@ impl Database {
     pub fn new() -> Database {
         Database { data: BTreeMap::new() } }
     
-    pub fn insert(&mut self, key : String, value: String) {
-        self.data.insert(key, value);
+    pub fn insert(&mut self, key : String, value: String) -> Option<String> {
+        self.data.insert(key, value)
     }
 
-    pub fn get(&self, key : String) {
-        self.data.get(&key);
+    pub fn get(&self, key : String) -> Option<String> {
+        self.data.get(&key).cloned()
     }
 
-    pub fn delete(&mut self, key: String) {
-        self.data.remove(&key);
-    }
-
-    pub fn error(&self) {
+    pub fn delete(&mut self, key: String) -> Option<String> {
+        self.data.remove(&key)
     }
 
     fn save_data(&self, path: &str) -> std::io::Result<()> {
-        let config = bincode::config::standard()
-            .with_big_endian()
-            .with_fixed_int_encoding();
-        let encoded : Vec<u8> = bincode::encode_to_vec(self, config).unwrap();
-        let mut file = File::create(path)?;
+        fs::create_dir_all("data")?;
+        let encoded : Vec<u8> = bincode::serialize(self).unwrap();
+        let mut file = fs::File::create(path)?;
         file.write_all(&encoded)?;
         Ok(())
     }
 
     fn load_data(path: &str) -> Result<Self> {
-
-
-        let file = File::open(path)?;
-        let config = bincode::config::standard()
-            .with_big_endian()
-            .with_fixed_int_encoding();
-
-        let data: Database = bincode::decode_from_reader(file, config).unwrap();
-
+        let mut file = fs::File::open(path)?;
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents)?;
+        let data = bincode::deserialize(&contents).unwrap();
         Ok(data)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    
+    use crate::Database;
+    use std::fs;
+
+    #[test]
+    fn saving_and_loading() {
+        let path = "data/database-test1.db";
+        let _ = fs::remove_file(path).is_ok();
+
+        let mut db = Database::new();
+        db.insert("foo".to_string(), "bar".to_string());
+        db.save_data(path).unwrap();
+
+        // ensure its actually loading the data
+        std::mem::drop(db);
+
+        let db = Database::load_data(path).unwrap();
+        let bar = db.get("foo".to_string()).unwrap();
+        assert_eq!(bar, "bar" );
+    }
+
+    #[test]
+    fn inserting_and_deleting() -> Result<(), String> {
+        let path = "data/database-test2.db";
+        let _ = fs::remove_file(path).is_ok();
+
+        let mut db = Database::new();
+        
+        db.insert("woo".to_string(), "warr".to_string());
+        db.save_data(path).unwrap();
+
+        std::mem::drop(db);
+
+        let mut db = Database::load_data(path).unwrap();
+        db.delete("woo".to_string());
+        match db.get("woo".to_string()) {
+            Some(_)=> Err("Value was not deleted".to_string()),
+            None => Ok(()),
+        }
+    }
+}
+
+
