@@ -18,10 +18,10 @@ impl Parser {
         let split = &mut line.split(" ");
         let keyword = split.next().unwrap().to_string();
         let key: String = split.next().unwrap().to_string().parse().unwrap();
-        let value = split.next().unwrap().to_string();
+        let value = split.next();
 
         match keyword.as_str() {
-            "INSERT" => Command::INSERT(key, value),
+            "INSERT" => Command::INSERT(key, value.unwrap().to_string()),
             "GET" => Command::GET(key),
             "DELETE" => Command::DELETE(key),
             _ => Command::ERROR(),
