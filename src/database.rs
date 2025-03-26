@@ -52,7 +52,7 @@ impl Database {
 
         match bincode::deserialize(&contents) {
             Ok(data) => Ok(data),
-            Err(_) => Ok(Self::new()),
+            Err(_) => Ok(Self::new(path.to_string())),
         }
     }
 }
@@ -67,7 +67,7 @@ mod tests {
         let path = "data/database-test1.db";
         let _ = fs::remove_file(path).is_ok();
 
-        let mut db = Database::new();
+        let mut db = Database::new(path.to_string());
         db.insert("foo".to_string(), "bar".to_string());
         db.save_data(path).unwrap();
 
@@ -84,7 +84,7 @@ mod tests {
         let path = "data/database-test2.db";
         let _ = fs::remove_file(path).is_ok();
 
-        let mut db = Database::new();
+        let mut db = Database::new(path.to_string());
         
         db.insert("woo".to_string(), "warr".to_string());
         db.save_data(path).unwrap();
