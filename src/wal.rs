@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 use std::fs;
 use std::io::Write;
 use bincode;
+use std::io::Read;
 
 use crate::parser::Command;
 
@@ -40,6 +41,33 @@ impl WALEntry {
 
         WALEntry::log("data/wal.log", &entry.as_ref().unwrap());
         entry
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WALManager {
+    path: String,
+}
+
+impl WALManager {
+    pub fn new(path : String) -> Self {
+        WALManager{ path }
+    }
+
+    pub fn read_wal_log(&self) { 
+        let mut log = fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .open(self.path.as_str())
+            .unwrap();
+
+        let mut contents = Vec::new();
+        log.read_to_end(&mut contents).unwrap();
+
+        let results : Option<Vec<u8>> = match bincode::deserialize(&contents) {
+            Ok(data) => Some(data),
+            Err(_) => None, 
+        };
     }
 }
 

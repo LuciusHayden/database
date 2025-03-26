@@ -7,15 +7,18 @@ use std::fs;
 use std::io::Read;
 use std::io::{Result, Write};
 
+use crate::wal::WALManager;
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Database {
     data: BTreeMap<String, String>,
+    wal_manager: WALManager, 
 }
 
 impl Database {
-    pub fn new() -> Database {
-        Database { data: BTreeMap::new() } }
+    pub fn new(path: String) -> Database {
+        Database { data: BTreeMap::new(), wal_manager: WALManager::new(path) } }
     
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
         self.data.insert(key, value)
@@ -40,7 +43,6 @@ impl Database {
     pub fn load_data(path: &str) -> Result<Self> {
         let mut file = fs::OpenOptions::new()
             .read(true)
-            .write(true)
             .create(true)
             .open(path)
             .unwrap();
@@ -57,7 +59,6 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
-    
     use crate::Database;
     use std::fs;
 
