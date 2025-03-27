@@ -1,6 +1,7 @@
 pub struct Parser {
 }
 
+#[derive(Debug)]
 pub enum Command {
     INSERT(String, String),
     GET(String),

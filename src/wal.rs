@@ -9,44 +9,32 @@ use crate::parser::Command;
 
 #[derive(Serialize, Deserialize)]
 pub struct WALEntry {
-    operation: String, 
-    key: String,
-    value: Option<String>,
+    pub operation: String, 
+    pub key: String,
+    pub value: Option<String>,
 }
 
 impl WALEntry {
 
-    fn new(operation: String, key: String, value: Option<String>) -> WALEntry {
+    pub fn new(operation: String, key: String, value: Option<String>) -> WALEntry {
         WALEntry {operation, key, value}
     }
 
-    fn log(path: &str, entry: &WALEntry) {
+    pub fn log(&self, path: &str) {
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path)
             .unwrap();
 
-        let encoded : Vec<u8> = bincode::serialize(entry).unwrap();
+        let encoded : Vec<u8> = bincode::serialize(self).unwrap();
         file.write_all(&encoded).unwrap();
-    }
-
-    pub fn operate(command: Command) -> Option<Self> {
-        let entry = match command {
-            Command::INSERT(key, value) => Some(WALEntry::new("INSERT".to_string(), key, Some(value))),
-            Command::GET(key) => Some(WALEntry::new("GET".to_string(), key, None)),
-            Command::DELETE(key) => Some(WALEntry::new("DELETE".to_string(), key, None)),
-            _ => None,
-        };
-
-        WALEntry::log("data/wal.log", &entry.as_ref().unwrap());
-        entry
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WALManager {
-    path: String,
+    pub path: String,
 }
 
 impl WALManager {
@@ -54,7 +42,20 @@ impl WALManager {
         WALManager{ path }
     }
 
-    pub fn read_wal_log(&self) { 
+    pub fn operate(&self, command: Command) -> Option<WALEntry> {
+        let entry = match command {
+            Command::INSERT(key, value) => Some(WALEntry::new("INSERT".to_string(), key, Some(value))),
+            Command::GET(key) => Some(WALEntry::new("GET".to_string(), key, None)),
+            Command::DELETE(key) => Some(WALEntry::new("DELETE".to_string(), key, None)),
+            _ => None,
+        };
+
+        entry.as_ref().unwrap().log(self.path.as_str());
+        entry
+    }
+
+
+    pub fn read_wal_log(&self) -> Option<Vec<WALEntry>> { 
         let mut log = fs::OpenOptions::new()
             .create(true)
             .read(true)
@@ -64,13 +65,12 @@ impl WALManager {
         let mut contents = Vec::new();
         log.read_to_end(&mut contents).unwrap();
 
-        let results : Option<Vec<u8>> = match bincode::deserialize(&contents) {
+        match bincode::deserialize(&contents) {
             Ok(data) => Some(data),
             Err(_) => None, 
-        };
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -80,6 +80,5 @@ mod tests {
 
     #[test]
     fn wal_log() {
-        WALEntry::operate(Command::INSERT("foo".to_string(), "bar".to_string()));
     }
 }

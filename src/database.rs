@@ -8,6 +8,8 @@ use std::io::Read;
 use std::io::{Result, Write};
 
 use crate::wal::WALManager;
+use crate::wal::WALEntry;
+use crate::parser::Command;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -18,17 +20,24 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: String) -> Database {
-        Database { data: BTreeMap::new(), wal_manager: WALManager::new(path) } }
-    
+        Database { data: BTreeMap::new(), wal_manager: WALManager::new(path) } 
+    }
+
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
+        let entry = WALEntry::new("INSERT".to_string(), key.clone(), Some(value.clone()));
+        entry.log(self.wal_manager.path.as_str());
         self.data.insert(key, value)
     }
 
     pub fn get(&self, key : String) -> Option<String> {
+        let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
+        entry.log(self.wal_manager.path.as_str());
         self.data.get(&key).cloned()
     }
 
     pub fn delete(&mut self, key: String) -> Option<String> {
+        let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
+        entry.log(self.wal_manager.path.as_str());
         self.data.remove(&key)
     }
 
@@ -43,16 +52,28 @@ impl Database {
     pub fn load_data(path: &str) -> Result<Self> {
         let mut file = fs::OpenOptions::new()
             .read(true)
-            .create(true)
-            .open(path)
-            .unwrap();
+            .open(path.to_string()).unwrap();
+            
 
         let mut contents = Vec::new();
-        file.read_to_end(&mut contents)?;
+        file.read_to_end(&mut contents).unwrap();
+
+        if contents.is_empty() {
+            return Ok(Database::new("data/wal.log".to_string()))
+        }
 
         match bincode::deserialize(&contents) {
             Ok(data) => Ok(data),
             Err(_) => Ok(Self::new(path.to_string())),
+        }
+    }
+
+    pub fn operate_db(&mut self, command: Command) -> Option<String>{
+        match command {
+            Command::INSERT(key, value) => self.insert(key, value),
+            Command::GET(key) => self.get(key),
+            Command::DELETE(key) => self.delete(key),
+            Command::ERROR() => None,
         }
     }
 }
