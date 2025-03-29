@@ -11,7 +11,6 @@ use crate::wal::WALManager;
 use crate::wal::WALEntry;
 use crate::parser::Command;
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Database {
     data: BTreeMap<String, String>,
@@ -46,26 +45,45 @@ impl Database {
         let encoded : Vec<u8> = bincode::serialize(self).unwrap();
         let mut file = fs::File::create(path)?;
         file.write_all(&encoded)?;
+
+        // clear the WAL log 
+        let mut wal = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(self.wal_manager.path.clone())?;
+
+        wal.flush()?;
+
         Ok(())
     }
 
     pub fn load_data(path: &str) -> Result<Self> {
         let mut file = fs::OpenOptions::new()
             .read(true)
-            .open(path.to_string()).unwrap();
+            .open(path.to_string())?;
             
-
         let mut contents = Vec::new();
-        file.read_to_end(&mut contents).unwrap();
+        file.read_to_end(&mut contents)?;
 
         if contents.is_empty() {
             return Ok(Database::new("data/wal.log".to_string()))
         }
 
-        match bincode::deserialize(&contents) {
+        let mut database : Result<Database> = match bincode::deserialize(&contents) {
             Ok(data) => Ok(data),
             Err(_) => Ok(Self::new(path.to_string())),
+        };
+
+        let logs = database.as_ref().unwrap().wal_manager.read_wal_log();
+
+        if logs.is_some() {
+            for log in logs.expect("wal.log is not empty") { 
+                let operation = log.convert_to_operation();
+                database.as_mut().unwrap().operate_db(operation);
+            }
         }
+
+        Ok(database?)
     }
 
     pub fn operate_db(&mut self, command: Command) -> Option<String>{

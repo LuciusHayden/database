@@ -7,12 +7,11 @@ use crate::wal::WALEntry;
 
 fn main() {
     let mut database = Database::load_data("data/database.db").unwrap();
-    //let mut database = Database::new("data/wal.log".to_string());
 
     let parser = Parser::new();
 
     let command = parser.parse("INSERT TEST 5".to_string());
-    let result = database.operate_db(command);
+    let _result = database.operate_db(command);
 
     let command = parser.parse("GET TEST".to_string());
 

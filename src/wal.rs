@@ -30,6 +30,15 @@ impl WALEntry {
         let encoded : Vec<u8> = bincode::serialize(self).unwrap();
         file.write_all(&encoded).unwrap();
     }
+
+    pub fn convert_to_operation(&self) -> Command {
+        match self.operation.as_str() {
+            "INSERT" => Command::INSERT(self.key.to_string(), self.value.clone().unwrap().to_string()),
+            "GET" => Command::GET(self.key.to_string()),
+            "DELETE" => Command::DELETE(self.key.to_string()),
+            _ => Command::ERROR(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,10 +63,8 @@ impl WALManager {
         entry
     }
 
-
     pub fn read_wal_log(&self) -> Option<Vec<WALEntry>> { 
         let mut log = fs::OpenOptions::new()
-            .create(true)
             .read(true)
             .open(self.path.as_str())
             .unwrap();
