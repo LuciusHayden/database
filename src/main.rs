@@ -1,3 +1,4 @@
+mod collections;
 mod parser;
 mod database;
 mod wal;

@@ -10,34 +10,64 @@ use std::io::{Result, Write};
 use crate::wal::WALManager;
 use crate::wal::WALEntry;
 use crate::parser::Command;
+use crate::collections::Collection;
+
+#[derive(Serialize, Deserialize, Debug)]
+enum DatabaseState {
+    SelectedCollection(Collection),
+    Unselected(),
+
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Database {
-    data: BTreeMap<String, String>,
+    path: String,
     wal_manager: WALManager, 
+    collections: Vec<Collection>,
+    state: DatabaseState,
 }
 
 impl Database {
     pub fn new(path: String) -> Database {
-        Database { data: BTreeMap::new(), wal_manager: WALManager::new(path) } 
+        Database { 
+            path: path.clone(),
+            wal_manager: WALManager::new(path),
+            collections : Vec::new(),
+            state: DatabaseState::Unselected() 
+        }
     }
 
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
-        let entry = WALEntry::new("INSERT".to_string(), key.clone(), Some(value.clone()));
-        entry.log(self.wal_manager.path.as_str());
-        self.data.insert(key, value)
+        match self.state {
+            DatabaseState::Unselected() => None,
+            DatabaseState::SelectedCollection(ref mut collection) => {
+                let entry = WALEntry::new("INSERT".to_string(), key.clone(), Some(value.clone()));
+                entry.log(self.wal_manager.path.as_str());
+                collection.insert(key.clone(), value.clone())
+            },
+        }
     }
 
     pub fn get(&self, key : String) -> Option<String> {
-        let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
-        entry.log(self.wal_manager.path.as_str());
-        self.data.get(&key).cloned()
+        match self.state {
+            DatabaseState::Unselected() => None,
+            DatabaseState::SelectedCollection(ref collection) => {
+                let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
+                entry.log(self.wal_manager.path.as_str());
+                collection.get(key)
+            },
+        }
     }
 
     pub fn delete(&mut self, key: String) -> Option<String> {
-        let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
-        entry.log(self.wal_manager.path.as_str());
-        self.data.remove(&key)
+        match self.state {
+            DatabaseState::Unselected() => None,
+            DatabaseState::SelectedCollection(ref mut collection) => {
+                let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
+                entry.log(self.wal_manager.path.as_str());
+                collection.delete(key)
+            },
+        }
     }
 
     pub fn save_data(&self, path: &str) -> std::io::Result<()> {
