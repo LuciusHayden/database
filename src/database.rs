@@ -16,7 +16,6 @@ use crate::collections::Collection;
 enum DatabaseState {
     SelectedCollection(Collection),
     Unselected(),
-
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -70,11 +69,23 @@ impl Database {
         }
     }
 
-    pub fn save_data(&self, path: &str) -> std::io::Result<()> {
-        fs::create_dir_all("data")?;
-        let encoded : Vec<u8> = bincode::serialize(self).unwrap();
-        let mut file = fs::File::create(path)?;
-        file.write_all(&encoded)?;
+    pub fn new_collection(&mut self, name: String) {
+        let collection = Collection::new(name);
+        self.collections.push(collection);
+    }
+
+    pub fn save_data(&self) -> std::io::Result<()> {
+        fs::create_dir_all(self.path.clone())?;
+        for collection in &self.collections {
+
+            let encoded : Vec<u8> = bincode::serialize(&collection).unwrap();
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&collection.name)?;
+
+            file.write_all(&encoded)?;
+        }
 
         // clear the WAL log 
         let mut wal = fs::OpenOptions::new()
@@ -87,33 +98,42 @@ impl Database {
         Ok(())
     }
 
-    pub fn load_data(path: &str) -> Result<Self> {
-        let mut file = fs::OpenOptions::new()
-            .read(true)
-            .open(path.to_string())?;
+    pub fn load_data(path : String) -> Result<Self> {
+        let mut collections : Vec<Collection> = Vec::new();
             
-        let mut contents = Vec::new();
-        file.read_to_end(&mut contents)?;
+        for entry in fs::read_dir(&path).unwrap() {
+            let path = entry?.path();
+            if path.is_file() && path.extension() == Some("db".as_ref()) {
+                let mut file = fs::OpenOptions::new()
+                    .read(true)
+                    .open(path.clone()).unwrap();
 
-        if contents.is_empty() {
-            return Ok(Database::new("data/wal.log".to_string()))
-        }
-
-        let mut database : Result<Database> = match bincode::deserialize(&contents) {
-            Ok(data) => Ok(data),
-            Err(_) => Ok(Self::new(path.to_string())),
-        };
-
-        let logs = database.as_ref().unwrap().wal_manager.read_wal_log();
-
-        if logs.is_some() {
-            for log in logs.expect("wal.log is not empty") { 
-                let operation = log.convert_to_operation();
-                database.as_mut().unwrap().operate_db(operation);
+                let mut contents = Vec::new();
+                file.read_to_end(&mut contents).unwrap();
+                let collection : Collection = match bincode::deserialize(&contents) {
+                    Ok(collection) => collection,
+                    Err(_) => Collection::new(path.file_stem().unwrap().to_str().unwrap().to_string()),
+                };
+                collections.push(collection);
             }
         }
 
-        Ok(database?)
+        if collections.is_empty() {
+            return Ok(Database::new("data".to_string()))
+        }
+
+        let database = Database{ collections, path: path.clone(), wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
+
+        //let logs = database.wal_manager.read_wal_log();
+        //
+        //if logs.is_some() {
+        //    for log in logs.expect("wal.log is not empty") { 
+        //        let operation = log.convert_to_operation();
+        //        database.operate_db(operation);
+        //    }
+        //}
+
+        Ok(database)
     }
 
     pub fn operate_db(&mut self, command: Command) -> Option<String>{
@@ -138,12 +158,12 @@ mod tests {
 
         let mut db = Database::new(path.to_string());
         db.insert("foo".to_string(), "bar".to_string());
-        db.save_data(path).unwrap();
+        db.save_data().unwrap();
 
         // ensure its actually loading the data
         std::mem::drop(db);
 
-        let db = Database::load_data(path).unwrap();
+        let db = Database::load_data(path.to_string()).unwrap();
         let bar = db.get("foo".to_string()).unwrap();
         assert_eq!(bar, "bar" );
     }
@@ -156,11 +176,11 @@ mod tests {
         let mut db = Database::new(path.to_string());
         
         db.insert("woo".to_string(), "warr".to_string());
-        db.save_data(path).unwrap();
+        db.save_data().unwrap();
 
         std::mem::drop(db);
 
-        let mut db = Database::load_data(path).unwrap();
+        let mut db = Database::load_data(path.to_string()).unwrap();
         db.delete("woo".to_string());
         match db.get("woo".to_string()) {
             Some(_)=> Err("Value was not deleted".to_string()),

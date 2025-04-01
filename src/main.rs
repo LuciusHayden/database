@@ -7,7 +7,8 @@ use crate::database::Database;
 use crate::wal::WALEntry;
 
 fn main() {
-    let mut database = Database::load_data("data/database.db").unwrap();
+    let mut database = Database::load_data("data".to_string()).unwrap();
+    println!("{:#?}", database);
 
     let parser = Parser::new();
 
@@ -19,6 +20,6 @@ fn main() {
     let result = database.operate_db(command);
     println!("{}", result.unwrap());
 
-    database.save_data("data/database.db").unwrap();
+    database.save_data().unwrap();
 }
 
