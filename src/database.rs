@@ -14,7 +14,7 @@ use crate::collections::Collection;
 
 #[derive(Serialize, Deserialize, Debug)]
 enum DatabaseState {
-    SelectedCollection(Collection),
+    SelectedCollection(usize),
     Unselected(),
 }
 
@@ -39,21 +39,21 @@ impl Database {
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
         match self.state {
             DatabaseState::Unselected() => None,
-            DatabaseState::SelectedCollection(ref mut collection) => {
-                let entry = WALEntry::new("INSERT".to_string(), key.clone(), Some(value.clone()));
-                entry.log(self.wal_manager.path.as_str());
-                collection.insert(key.clone(), value.clone())
+            DatabaseState::SelectedCollection(collection) => {
+                let entry = WALEntry::new(self.collections[collection].name.clone(),"INSERT".to_string(), key.clone(), Some(value.clone()));
+                entry.log(format!("{}/wal.log", self.path).as_str());
+                self.collections[collection].insert(key.clone(), value.clone())
             },
         }
     }
 
     pub fn get(&self, key : String) -> Option<String> {
         match self.state {
-            DatabaseState::Unselected() => None,
-            DatabaseState::SelectedCollection(ref collection) => {
-                let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
-                entry.log(self.wal_manager.path.as_str());
-                collection.get(key)
+            DatabaseState::Unselected() => Some("Select a collection".to_string()),
+            DatabaseState::SelectedCollection(collection) => {
+                let entry = WALEntry::new(self.collections[collection].name.clone(), "GET".to_string(), key.clone(), None); 
+                entry.log(format!("{}/wal.log", self.path).as_str());
+                self.collections[collection].get(key)
             },
         }
     }
@@ -61,39 +61,52 @@ impl Database {
     pub fn delete(&mut self, key: String) -> Option<String> {
         match self.state {
             DatabaseState::Unselected() => None,
-            DatabaseState::SelectedCollection(ref mut collection) => {
-                let entry = WALEntry::new("GET".to_string(), key.clone(), None); 
-                entry.log(self.wal_manager.path.as_str());
-                collection.delete(key)
+            DatabaseState::SelectedCollection(collection) => {
+                let entry = WALEntry::new(self.collections[collection].name.clone(),"GET".to_string(), key.clone(), None); 
+                entry.log(format!("{}/wal.log", self.path).as_str());
+                self.collections[collection].delete(key)
             },
         }
     }
 
-    pub fn new_collection(&mut self, name: String) {
+    fn select(&mut self, collection: String) -> Option<String> {
+        match self.find_collection_by_name(collection) {
+            Some(index) => {
+                self.state = DatabaseState::SelectedCollection(index);
+                Some(index.to_string())
+            },
+            None => None,
+        }
+    }
+
+    pub fn new_collection(&mut self, name: String) -> Option<String> {
         let collection = Collection::new(name);
         self.collections.push(collection);
+        None
+    }
+
+    pub fn find_collection_by_name(&self, name: String) -> Option<usize> {
+        Some(self.collections.iter().position(|c| c.name == name)?)
     }
 
     pub fn save_data(&self) -> std::io::Result<()> {
-        fs::create_dir_all(self.path.clone())?;
+        fs::create_dir_all(self.path.clone()).unwrap();
         for collection in &self.collections {
-
             let encoded : Vec<u8> = bincode::serialize(&collection).unwrap();
             let mut file = fs::OpenOptions::new()
                 .write(true)
-                .create(true)
-                .open(&collection.name)?;
+                .open(format!("{}/{}.db", &self.path, &collection.name)).unwrap();
 
-            file.write_all(&encoded)?;
+            file.write_all(&encoded).unwrap();
         }
 
         // clear the WAL log 
         let mut wal = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
-            .open(self.wal_manager.path.clone())?;
+            .open(format!("{}/wal.log", self.path.clone())).unwrap();
 
-        wal.flush()?;
+        wal.flush().unwrap();
 
         Ok(())
     }
@@ -129,7 +142,7 @@ impl Database {
         //if logs.is_some() {
         //    for log in logs.expect("wal.log is not empty") { 
         //        let operation = log.convert_to_operation();
-        //        database.operate_db(operation);
+        //        database.o;perate_db(operation);
         //    }
         //}
 
@@ -141,6 +154,8 @@ impl Database {
             Command::INSERT(key, value) => self.insert(key, value),
             Command::GET(key) => self.get(key),
             Command::DELETE(key) => self.delete(key),
+            Command::SELECT(key) => self.select(key),
+            Command::NEW(key) => self.new_collection(key),
             Command::ERROR() => None,
         }
     }

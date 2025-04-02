@@ -12,6 +12,9 @@ fn main() {
 
     let parser = Parser::new();
 
+    let command = parser.parse("SELECT database".to_string());
+    database.operate_db(command);
+
     let command = parser.parse("INSERT TEST 5".to_string());
     let _result = database.operate_db(command);
 

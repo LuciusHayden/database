@@ -9,6 +9,7 @@ use crate::parser::Command;
 
 #[derive(Serialize, Deserialize)]
 pub struct WALEntry {
+    pub collection: String,
     pub operation: String, 
     pub key: String,
     pub value: Option<String>,
@@ -16,8 +17,8 @@ pub struct WALEntry {
 
 impl WALEntry {
 
-    pub fn new(operation: String, key: String, value: Option<String>) -> WALEntry {
-        WALEntry {operation, key, value}
+    pub fn new(collection: String, operation: String, key: String, value: Option<String>) -> WALEntry {
+        WALEntry {collection, operation, key, value}
     }
 
     pub fn log(&self, path: &str) {
@@ -51,11 +52,11 @@ impl WALManager {
         WALManager{ path }
     }
 
-    pub fn operate(&self, command: Command) -> Option<WALEntry> {
+    pub fn operate(&self, command: Command, collection: String) -> Option<WALEntry> {
         let entry = match command {
-            Command::INSERT(key, value) => Some(WALEntry::new("INSERT".to_string(), key, Some(value))),
-            Command::GET(key) => Some(WALEntry::new("GET".to_string(), key, None)),
-            Command::DELETE(key) => Some(WALEntry::new("DELETE".to_string(), key, None)),
+            Command::INSERT(key, value) => Some(WALEntry::new(collection, "INSERT".to_string(), key, Some(value))),
+            Command::GET(key) => Some(WALEntry::new(collection, "GET".to_string(), key, None)),
+            Command::DELETE(key) => Some(WALEntry::new(collection, "DELETE".to_string(), key, None)),
             _ => None,
         };
 

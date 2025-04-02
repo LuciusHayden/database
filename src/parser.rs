@@ -6,6 +6,8 @@ pub enum Command {
     INSERT(String, String),
     GET(String),
     DELETE(String),
+    SELECT(String),
+    NEW(String),
     ERROR(),
 }
 
@@ -25,6 +27,8 @@ impl Parser {
             "INSERT" => Command::INSERT(key, value.unwrap().to_string()),
             "GET" => Command::GET(key),
             "DELETE" => Command::DELETE(key),
+            "SELECT" => Command::SELECT(key),
+            "NEW" => Command::NEW(key),
             _ => Command::ERROR(),
         }
     }
