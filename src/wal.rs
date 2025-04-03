@@ -67,7 +67,7 @@ impl WALManager {
     pub fn read_wal_log(&self) -> Option<Vec<WALEntry>> { 
         let mut log = fs::OpenOptions::new()
             .read(true)
-            .open(self.path.as_str())
+            .open(format!("{}/wal.log", self.path))
             .unwrap();
 
         let mut contents = Vec::new();

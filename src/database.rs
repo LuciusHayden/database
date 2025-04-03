@@ -90,7 +90,7 @@ impl Database {
     }
 
     pub fn save_data(&self) -> std::io::Result<()> {
-        fs::create_dir_all(self.path.clone()).unwrap();
+        let _ = fs::create_dir_all(self.path.clone());
         for collection in &self.collections {
             let encoded : Vec<u8> = bincode::serialize(&collection).unwrap();
             let mut file = fs::OpenOptions::new()
@@ -99,6 +99,8 @@ impl Database {
 
             file.write_all(&encoded).unwrap();
         }
+
+        println!("{}", self.path.clone());
 
         // clear the WAL log 
         let mut wal = fs::OpenOptions::new()
@@ -135,16 +137,18 @@ impl Database {
             return Ok(Database::new("data".to_string()))
         }
 
-        let database = Database{ collections, path: path.clone(), wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
+        let mut database = Database{ collections, path: path.clone(), wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
 
-        //let logs = database.wal_manager.read_wal_log();
-        //
-        //if logs.is_some() {
-        //    for log in logs.expect("wal.log is not empty") { 
-        //        let operation = log.convert_to_operation();
-        //        database.o;perate_db(operation);
-        //    }
-        //}
+        let logs = database.wal_manager.read_wal_log();
+
+        if logs.is_some() {
+            for log in logs.expect("wal.log is not empty") { 
+                database.select(log.collection.clone());
+                let operation = log.convert_to_operation();
+                database.operate_db(operation);
+            }
+        }
+        database.state = DatabaseState::Unselected();
 
         Ok(database)
     }
@@ -164,14 +168,32 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use crate::Database;
+    use std::path::PathBuf;
     use std::fs;
+    use tempdir::TempDir;
+    use std::path::Path;
+
+    fn setup_persistent_test_database() -> (Database, String) {
+        let test_dir = PathBuf::from("data/test_database");
+        let db_path = test_dir.join("database_test.db");
+
+        // Ensure the test directory exists
+        fs::create_dir_all(&test_dir).unwrap();
+
+        // Clear the old database file if it exists
+        if db_path.exists() {
+            fs::remove_file(&db_path).unwrap();
+        }
+
+        // Create a new, empty database file
+        fs::File::create(&db_path).unwrap();
+
+        (Database::new(db_path.to_str().unwrap().to_string()), db_path.to_str().unwrap().to_string())
+    }
 
     #[test]
     fn saving_and_loading() {
-        let path = "data/database-test1.db";
-        let _ = fs::remove_file(path).is_ok();
-
-        let mut db = Database::new(path.to_string());
+        let (mut db , path) = setup_persistent_test_database();
         db.insert("foo".to_string(), "bar".to_string());
         db.save_data().unwrap();
 
@@ -185,7 +207,7 @@ mod tests {
 
     #[test]
     fn inserting_and_deleting() -> Result<(), String> {
-        let path = "data/database-test2.db";
+        let path = "data";
         let _ = fs::remove_file(path).is_ok();
 
         let mut db = Database::new(path.to_string());
