@@ -11,9 +11,12 @@ fn main() {
     println!("{:#?}", database);
 
     let parser = Parser::new();
-
-    let command = parser.parse("SELECT database".to_string());
+    let command = parser.parse("NEW collection".to_string());
     database.operate_db(command);
+
+    let command = parser.parse("SELECT collection".to_string());
+    database.operate_db(command);
+
 
     let command = parser.parse("INSERT TEST 5".to_string());
     let _result = database.operate_db(command);

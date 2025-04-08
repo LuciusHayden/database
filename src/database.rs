@@ -80,8 +80,9 @@ impl Database {
     }
 
     pub fn new_collection(&mut self, name: String) -> Option<String> {
-        let collection = Collection::new(name);
+        let collection = Collection::new(name.clone());
         self.collections.push(collection);
+        fs::File::create(format!("{}/{}.db", self.path, name)).unwrap();
         None
     }
 
@@ -99,8 +100,6 @@ impl Database {
 
             file.write_all(&encoded).unwrap();
         }
-
-        println!("{}", self.path.clone());
 
         // clear the WAL log 
         let mut wal = fs::OpenOptions::new()
