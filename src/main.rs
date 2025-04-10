@@ -2,6 +2,8 @@ mod collections;
 mod parser;
 mod database;
 mod wal;
+mod auth;
+
 use crate::parser::{Command, Parser};
 use crate::database::Database;
 

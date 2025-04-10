@@ -1,11 +1,13 @@
 use serde::{Serialize, Deserialize};
-use std::fs;
-use std::io::Write;
+
+use std::{
+    fs,
+    io::{Write, Read},
+};
+
 use bincode;
-use std::io::Read;
 
 use crate::parser::Command;
-
 
 #[derive(Serialize, Deserialize)]
 pub struct WALEntry {

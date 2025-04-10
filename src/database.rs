@@ -1,15 +1,19 @@
 use serde::{Serialize, Deserialize};
-use std::option::Option;
+
+use std::{
+    option::Option,
+    fs,
+    error::Error,
+    io::{Read, Result, Write}
+};
 
 use bincode;
-use std::fs;
-use std::io::Read;
-use std::io::{Result, Write};
 
 use crate::wal::WALManager;
 use crate::wal::WALEntry;
 use crate::parser::Command;
 use crate::collections::Collection;
+use crate::auth::{Permissions, AuthManager};
 
 #[derive(Serialize, Deserialize, Debug)]
 enum DatabaseState {
@@ -21,6 +25,7 @@ enum DatabaseState {
 pub struct Database {
     path: String,
     wal_manager: WALManager, 
+    auth_manager: AuthManager, 
     collections: Vec<Collection>,
     state: DatabaseState,
 }
@@ -30,10 +35,19 @@ impl Database {
         fs::create_dir_all(&path).unwrap();
         Database { 
             path: path.clone(),
-            wal_manager: WALManager::new(path),
+            wal_manager: WALManager::new(path.clone()),
+            auth_manager: AuthManager::new(path.as_str()),
             collections : Vec::new(),
             state: DatabaseState::Unselected() 
         }
+    }
+
+    pub fn login(&mut self, username: String, password: String) -> Result<String> {
+        Ok(self.auth_manager.login(username, password).unwrap())
+    }
+
+    pub fn new_user(&mut self, username: String, password: String, permissions: Permissions) {
+        self.auth_manager.new_user(username, password, permissions);
     }
 
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
@@ -133,11 +147,20 @@ impl Database {
             }
         }
 
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .open(format!("{}/user.log", path.clone()))
+            .unwrap();
+
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents).unwrap();
+        let auth_manager: AuthManager = bincode::deserialize(&contents).unwrap();
+
         if collections.is_empty() {
-            return Ok(Database::new("data".to_string()))
+            return Ok(Database::new(path.clone()))
         }
 
-        let mut database = Database{ collections, path: path.clone(), wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
+        let mut database = Database{ collections, path: path.clone(), auth_manager, wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
 
         let logs = database.wal_manager.read_wal_log();
 
