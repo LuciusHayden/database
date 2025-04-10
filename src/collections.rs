@@ -1,10 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::collections::BTreeMap;
 
-use crate::wal::WALEntry;
-
-
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Collection { 
     data: BTreeMap<String, String>,

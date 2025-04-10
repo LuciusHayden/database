@@ -4,10 +4,10 @@ mod database;
 mod wal;
 use crate::parser::{Command, Parser};
 use crate::database::Database;
-use crate::wal::WALEntry;
 
 fn main() {
-    let mut database = Database::load_data("data".to_string()).unwrap();
+    let mut database = Database::new("cook".to_string());
+    //let mut database = Database::load_data("data".to_string()).unwrap();
     println!("{:#?}", database);
 
     let parser = Parser::new();

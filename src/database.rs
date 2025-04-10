@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
 use std::option::Option;
 
@@ -28,6 +27,7 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: String) -> Database {
+        fs::create_dir_all(&path).unwrap();
         Database { 
             path: path.clone(),
             wal_manager: WALManager::new(path),
@@ -82,6 +82,7 @@ impl Database {
     pub fn new_collection(&mut self, name: String) -> Option<String> {
         let collection = Collection::new(name.clone());
         self.collections.push(collection);
+        println!("{}", self.path.clone());
         fs::File::create(format!("{}/{}.db", self.path, name)).unwrap();
         None
     }
@@ -114,7 +115,7 @@ impl Database {
 
     pub fn load_data(path : String) -> Result<Self> {
         let mut collections : Vec<Collection> = Vec::new();
-            
+
         for entry in fs::read_dir(&path).unwrap() {
             let path = entry?.path();
             if path.is_file() && path.extension() == Some("db".as_ref()) {
@@ -169,8 +170,6 @@ mod tests {
     use crate::Database;
     use std::path::PathBuf;
     use std::fs;
-    use tempdir::TempDir;
-    use std::path::Path;
 
     fn setup_persistent_test_database() -> (Database, String) {
         let test_dir = PathBuf::from("data/test_database");
