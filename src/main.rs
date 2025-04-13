@@ -3,13 +3,27 @@ mod parser;
 mod database;
 mod wal;
 mod auth;
+mod session;
+
+use std::env;
 
 use crate::parser::{Command, Parser};
 use crate::database::Database;
+use crate::auth::Permissions;
 
 fn main() {
-    let mut database = Database::new("cook".to_string());
-    //let mut database = Database::load_data("data".to_string()).unwrap();
+
+    let args: Vec<String> = env::args().collect();
+
+    let username = &args[1];
+    let password = &args[2];
+
+    //let mut database = Database::new("cook".to_string());
+
+    //let mut database = Database::new("data".to_string());
+    let mut database = Database::load_data("data".to_string()).unwrap();
+    database.new_user("lucius".to_string(), "123".to_string(), Permissions::Admin());
+    database.login(username.to_string(), password.to_string()).unwrap();
     println!("{:#?}", database);
 
     let parser = Parser::new();

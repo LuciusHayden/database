@@ -14,6 +14,7 @@ use crate::wal::WALEntry;
 use crate::parser::Command;
 use crate::collections::Collection;
 use crate::auth::{Permissions, AuthManager};
+use crate::session::Session;
 
 #[derive(Serialize, Deserialize, Debug)]
 enum DatabaseState {
@@ -28,6 +29,7 @@ pub struct Database {
     auth_manager: AuthManager, 
     collections: Vec<Collection>,
     state: DatabaseState,
+    current_session: Option<Session>,
 }
 
 impl Database {
@@ -38,30 +40,41 @@ impl Database {
             wal_manager: WALManager::new(path.clone()),
             auth_manager: AuthManager::new(path.as_str()),
             collections : Vec::new(),
-            state: DatabaseState::Unselected() 
+            state: DatabaseState::Unselected(),
+            current_session: None,
         }
     }
 
-    pub fn login(&mut self, username: String, password: String) -> Result<String> {
-        Ok(self.auth_manager.login(username, password).unwrap())
+    pub fn login(&mut self, username: String, password: String) -> Result<()> {
+        let session = self.auth_manager.login(username, password).unwrap();
+        self.current_session = Some(session);
+        Ok(())
     }
 
     pub fn new_user(&mut self, username: String, password: String, permissions: Permissions) {
-        self.auth_manager.new_user(username, password, permissions);
+        self.auth_manager.new_user(&self.path, username, password, permissions);
     }
 
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
+        if self.current_session.is_none() {
+            return None
+        }
+
         match self.state {
             DatabaseState::Unselected() => None,
             DatabaseState::SelectedCollection(collection) => {
                 let entry = WALEntry::new(self.collections[collection].name.clone(),"INSERT".to_string(), key.clone(), Some(value.clone()));
                 entry.log(format!("{}/wal.log", self.path).as_str());
-                self.collections[collection].insert(key.clone(), value.clone())
+                self.collections[collection].insert(key, value)
             },
         }
     }
 
     pub fn get(&self, key : String) -> Option<String> {
+        if self.current_session.is_none() {
+            return None
+        }
+
         match self.state {
             DatabaseState::Unselected() => Some("Select a collection".to_string()),
             DatabaseState::SelectedCollection(collection) => {
@@ -73,10 +86,13 @@ impl Database {
     }
 
     pub fn delete(&mut self, key: String) -> Option<String> {
+        if self.current_session.is_none() {
+            return None
+        }
         match self.state {
             DatabaseState::Unselected() => None,
             DatabaseState::SelectedCollection(collection) => {
-                let entry = WALEntry::new(self.collections[collection].name.clone(),"GET".to_string(), key.clone(), None); 
+                let entry = WALEntry::new(self.collections[collection].name.clone(),"DELETE".to_string(), key.clone(), None); 
                 entry.log(format!("{}/wal.log", self.path).as_str());
                 self.collections[collection].delete(key)
             },
@@ -84,6 +100,9 @@ impl Database {
     }
 
     fn select(&mut self, collection: String) -> Option<String> {
+        if self.current_session.is_none() {
+            return None
+        }
         match self.find_collection_by_name(collection) {
             Some(index) => {
                 self.state = DatabaseState::SelectedCollection(index);
@@ -94,6 +113,9 @@ impl Database {
     }
 
     pub fn new_collection(&mut self, name: String) -> Option<String> {
+        if self.current_session.is_none() {
+            return None
+        }
         let collection = Collection::new(name.clone());
         self.collections.push(collection);
         println!("{}", self.path.clone());
@@ -105,7 +127,7 @@ impl Database {
         Some(self.collections.iter().position(|c| c.name == name)?)
     }
 
-    pub fn save_data(&self) -> std::io::Result<()> {
+    pub fn save_data(&self) -> Result<()> {
         let _ = fs::create_dir_all(self.path.clone());
         for collection in &self.collections {
             let encoded : Vec<u8> = bincode::serialize(&collection).unwrap();
@@ -116,7 +138,7 @@ impl Database {
             file.write_all(&encoded).unwrap();
         }
 
-        // clear the WAL log 
+        // clear the WAL 
         let mut wal = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
@@ -149,7 +171,7 @@ impl Database {
 
         let mut file = fs::OpenOptions::new()
             .read(true)
-            .open(format!("{}/user.log", path.clone()))
+            .open(format!("{}/users.log", path.clone()))
             .unwrap();
 
         let mut contents = Vec::new();
@@ -160,7 +182,14 @@ impl Database {
             return Ok(Database::new(path.clone()))
         }
 
-        let mut database = Database{ collections, path: path.clone(), auth_manager, wal_manager: WALManager::new(path), state : DatabaseState::Unselected() };
+        let mut database = Database{ 
+            collections, 
+            path: path.clone(), 
+            auth_manager, 
+            wal_manager: WALManager::new(path), 
+            state : DatabaseState::Unselected(),
+            current_session: None,
+        };
 
         let logs = database.wal_manager.read_wal_log();
 
