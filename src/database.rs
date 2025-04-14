@@ -4,7 +4,7 @@ use std::{
     option::Option,
     fs,
     error::Error,
-    io::{Read, Result, Write}
+    io::{Read, Write}
 };
 
 use bincode;
@@ -15,6 +15,7 @@ use crate::parser::Command;
 use crate::collections::Collection;
 use crate::auth::{Permissions, AuthManager};
 use crate::session::Session;
+use crate::errors::DatabaseError;
 
 #[derive(Serialize, Deserialize, Debug)]
 enum DatabaseState {
@@ -38,21 +39,22 @@ impl Database {
         Database { 
             path: path.clone(),
             wal_manager: WALManager::new(path.clone()),
-            auth_manager: AuthManager::new(path.as_str()),
+            auth_manager: AuthManager::new(path.as_str()).unwrap(),
             collections : Vec::new(),
             state: DatabaseState::Unselected(),
             current_session: None,
         }
     }
 
-    pub fn login(&mut self, username: String, password: String) -> Result<()> {
+    pub fn login(&mut self, username: String, password: String) -> Result<(), DatabaseError> {
         let session = self.auth_manager.login(username, password).unwrap();
         self.current_session = Some(session);
         Ok(())
     }
 
-    pub fn new_user(&mut self, username: String, password: String, permissions: Permissions) {
+    pub fn new_user(&mut self, username: String, password: String, permissions: Permissions) -> Result<(), DatabaseError> {
         self.auth_manager.new_user(&self.path, username, password, permissions);
+        Ok(())
     }
 
     pub fn insert(&mut self, key : String, value: String) -> Option<String> {
@@ -127,7 +129,7 @@ impl Database {
         Some(self.collections.iter().position(|c| c.name == name)?)
     }
 
-    pub fn save_data(&self) -> Result<()> {
+    pub fn save_data(&self) -> Result<(), DatabaseError> {
         let _ = fs::create_dir_all(self.path.clone());
         for collection in &self.collections {
             let encoded : Vec<u8> = bincode::serialize(&collection).unwrap();
@@ -149,7 +151,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn load_data(path : String) -> Result<Self> {
+    pub fn load_data(path : String) -> Result<Self, DatabaseError> {
         let mut collections : Vec<Collection> = Vec::new();
 
         for entry in fs::read_dir(&path).unwrap() {

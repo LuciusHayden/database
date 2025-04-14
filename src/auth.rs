@@ -5,6 +5,7 @@ use std::io::Write;
 use std::error::Error;
 use std::collections::HashMap;
 
+use crate::errors::DatabaseError;
 use crate::session::Session;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -32,21 +33,21 @@ impl AuthManager {
         Session{ user: user.username.clone(), permissions: user.permissions.clone()}
     }
 
-    pub fn new(path: &str) -> AuthManager {
+    pub fn new(path: &str) -> Result<AuthManager, DatabaseError> {
 
         let manager = AuthManager{ users: HashMap::new(), current: None };
-        let encoded : Vec<u8> = bincode::serialize(&manager).unwrap();
+        let encoded : Vec<u8> = bincode::serialize(&manager)?;
 
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
-            .open(format!("{}/users.log", path)).unwrap();
+            .open(format!("{}/users.log", path))?;
 
-        file.write_all(&encoded).unwrap();
-        manager
+        file.write_all(&encoded)?;
+        Ok(manager)
     }
 
-    pub fn login(&mut self, username: String, password : String) -> Result<Session, Box<dyn Error>> {
+    pub fn login(&mut self, username: String, password : String) -> Result<Session, DatabaseError> {
         match self.users.get(&username) {
             Some(user) => {
                 match AuthManager::verify_password(password, &user.password_hash) {
@@ -54,32 +55,31 @@ impl AuthManager {
                         self.current = Some(user.username.clone());
                         Ok(AuthManager::create_session(user))
                     }
-                    false => Err("Incorrect Password".into()),
+                    false => Err(DatabaseError::UserError("Incorrect Password".to_string())),
                 }
             }
-            None => Err("User doesnt exist".into())
+            None => Err(DatabaseError::UserError("User not found".to_string()))
         }
     }
     
-    pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) -> Result<(), Box<dyn Error>> {
-        let password_hash = hash(password, DEFAULT_COST).unwrap();
+    pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) -> Result<(), DatabaseError> {
+        let password_hash = hash(password, DEFAULT_COST)?;
         if self.users.get(&username).is_some() {
-            return Err("Username already taken".into())
+            return Err(DatabaseError::UserError("Username already taken".to_string()))
         }
 
         let user = User{ username : username.clone(), password_hash, permissions };
         self.users.insert(username, user);
 
         // might eventually move this
-        let encoded : Vec<u8> = bincode::serialize(&self).unwrap();
+        let encoded : Vec<u8> = bincode::serialize(&self)?;
         println!("{:#?}", self);
 
         let mut file = OpenOptions::new()
             .write(true)
-            .open(format!("{}/users.log", path))
-            .unwrap();
+            .open(format!("{}/users.log", path))?;
 
-        file.write_all(&encoded).unwrap();
+        file.write_all(&encoded)?;
         Ok(())
     }
 
