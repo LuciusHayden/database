@@ -3,6 +3,7 @@ use bcrypt::{hash, verify, DEFAULT_COST};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::error::Error;
+use std::collections::HashMap;
 
 use crate::session::Session;
 
@@ -10,6 +11,7 @@ use crate::session::Session;
 pub enum Permissions {
     Admin(),
     User(),
+    Guest(),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -21,8 +23,7 @@ pub struct User {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AuthManager {
-    // why didnt I use a hashmap here? Replace this one day
-    users: Vec<User>,
+    users: HashMap<String, User>,
     current: Option<String>,
 }
 
@@ -33,7 +34,7 @@ impl AuthManager {
 
     pub fn new(path: &str) -> AuthManager {
 
-        let manager = AuthManager{ users: Vec::new(), current: None };
+        let manager = AuthManager{ users: HashMap::new(), current: None };
         let encoded : Vec<u8> = bincode::serialize(&manager).unwrap();
 
         let mut file = OpenOptions::new()
@@ -46,7 +47,7 @@ impl AuthManager {
     }
 
     pub fn login(&mut self, username: String, password : String) -> Result<Session, Box<dyn Error>> {
-        match self.users.iter().find(|u| u.username == username) {
+        match self.users.get(&username) {
             Some(user) => {
                 match AuthManager::verify_password(password, &user.password_hash) {
                     true => {
@@ -60,10 +61,13 @@ impl AuthManager {
         }
     }
     
-    pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) {
+    pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) -> Result<(), Box<dyn Error>> {
         let password_hash = hash(password, DEFAULT_COST).unwrap();
-        let user = User{ username, password_hash, permissions };
-        self.users.push(user);
+        if self.users.get(&username).is_none() {
+            return Err("Username already taken".into())
+        }
+        let user = User{ username : username.clone(), password_hash, permissions };
+        self.users.insert(username, user);
 
         // might eventually move this
         let encoded : Vec<u8> = bincode::serialize(&self).unwrap();
@@ -75,7 +79,7 @@ impl AuthManager {
             .unwrap();
 
         file.write_all(&encoded).unwrap();
-        
+        Ok(())
     }
 
     fn verify_password(password: String, hash: &str) -> bool { 
