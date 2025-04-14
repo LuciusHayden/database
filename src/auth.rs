@@ -63,9 +63,10 @@ impl AuthManager {
     
     pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) -> Result<(), Box<dyn Error>> {
         let password_hash = hash(password, DEFAULT_COST).unwrap();
-        if self.users.get(&username).is_none() {
+        if self.users.get(&username).is_some() {
             return Err("Username already taken".into())
         }
+
         let user = User{ username : username.clone(), password_hash, permissions };
         self.users.insert(username, user);
 
