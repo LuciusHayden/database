@@ -2,7 +2,6 @@ use serde::{Serialize, Deserialize};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::error::Error;
 use std::collections::HashMap;
 
 use crate::errors::DatabaseError;

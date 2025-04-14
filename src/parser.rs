@@ -20,7 +20,7 @@ impl Parser {
 
         let split = &mut line.split(" ");
         let keyword = split.next().unwrap().to_string();
-        let key: String = split.next().unwrap().to_string().parse().unwrap();
+        let key: String = split.next().unwrap_or("").to_string().parse().unwrap_or("".to_string());
         let value = split.next();
 
         match keyword.as_str() {

@@ -47,7 +47,7 @@ impl Database {
     }
 
     pub fn login(&mut self, username: String, password: String) -> Result<(), DatabaseError> {
-        let session = self.auth_manager.login(username, password).unwrap();
+        let session = self.auth_manager.login(username, password)?;
         self.current_session = Some(session);
         Ok(())
     }
