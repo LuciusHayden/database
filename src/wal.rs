@@ -6,6 +6,7 @@ use std::{
 };
 
 use bincode;
+use serde_json::Value;
 
 use crate::parser::Command;
 
@@ -14,12 +15,12 @@ pub struct WALEntry {
     pub collection: String,
     pub operation: String, 
     pub key: String,
-    pub value: Option<String>,
+    pub value: Option<Value>,
 }
 
 impl WALEntry {
 
-    pub fn new(collection: String, operation: String, key: String, value: Option<String>) -> WALEntry {
+    pub fn new(collection: String, operation: String, key: String, value: Option<Value>) -> WALEntry {
         WALEntry {collection, operation, key, value}
     }
 
@@ -36,7 +37,7 @@ impl WALEntry {
 
     pub fn convert_to_operation(&self) -> Command {
         match self.operation.as_str() {
-            "INSERT" => Command::INSERT(self.key.to_string(), self.value.clone().unwrap().to_string()),
+            "INSERT" => Command::INSERT(self.key.to_string(), self.value.clone().unwrap()),
             "GET" => Command::GET(self.key.to_string()),
             "DELETE" => Command::DELETE(self.key.to_string()),
             _ => Command::ERROR(),
@@ -51,6 +52,8 @@ pub struct WALManager {
 
 impl WALManager {
     pub fn new(path : String) -> Self {
+        let _ = fs::File::create_new(format!("{}/wal.log", &path));
+
         WALManager{ path }
     }
 

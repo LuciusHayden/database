@@ -9,6 +9,7 @@ pub enum DatabaseError {
     UserError(String),
     SerializationError(String),
     IOError(io::Error),
+    CollectionError(String),
     Other(String),
 }
 
@@ -20,6 +21,7 @@ impl fmt::Display for DatabaseError {
             DatabaseError::UserError(error) => write!(f, "Login Error: {}", error), 
             DatabaseError::SerializationError(msg) => write!(f, "Serialization Error: {}", msg),
             DatabaseError::IOError(err) => write!(f, "IO error: {}", err),
+            DatabaseError::CollectionError(msg) => write!(f, "Collection Error: {}", msg),
             DatabaseError::Other(msg) => write!(f, "Error: {}", msg),
         }
     }
@@ -35,13 +37,19 @@ impl From<io::Error> for DatabaseError {
 
 impl From<bincode::Error> for DatabaseError {
     fn from(err: bincode::Error) -> Self {
-        DatabaseError::SerializationError(err.to_string())
+        DatabaseError::SerializationError(format!("bincode: {}", err))
     }
 }
 
 
 impl From<bcrypt::BcryptError> for DatabaseError {
     fn from(err: bcrypt::BcryptError) -> Self {
-        DatabaseError::Other(err.to_string())
+        DatabaseError::Other(format!("bcrypt: {}", err))
+    }
+}
+
+impl From<serde_json::Error> for DatabaseError {
+    fn from( err: serde_json::Error) -> Self {
+        DatabaseError::Other(format!("serde_json: {}", err))
     }
 }

@@ -20,9 +20,9 @@ fn main() {
     let username = &args[1];
     let password = &args[2];
 
-    //let mut database = Database::new("data".to_string());
-    let mut database = Database::load_data("data".to_string()).unwrap();
-    //let _ = database.new_user("lucius".to_string(), "123".to_string(), Permissions::Admin());
+    let mut database = Database::new("data".to_string());
+    //let mut database = Database::load_data("data".to_string()).unwrap();
+    let _ = database.new_user("lucius".to_string(), "123".to_string(), Permissions::Admin());
     match database.login(username.to_string(), password.to_string()) {
         Ok(val) => val,
         Err(e) => {
@@ -36,8 +36,8 @@ fn main() {
     //let command = parser.parse("NEW collection".to_string());
     //database.operate_db(command);
     //
-    //let command = parser.parse("SELECT collection".to_string());
-    //database.operate_db(command);
+    let command = parser.parse("SELECT collection".to_string());
+    database.operate_db(command);
     //
     //let command = parser.parse("INSERT TEST 5".to_string());
     //let _result = database.operate_db(command);
@@ -61,8 +61,9 @@ fn main() {
         let command = parser.parse(input.trim().to_string());
         let result = database.operate_db(command);
         match result {
-            Some(result) => println!("{}", result),
-            None => (),
+            Ok(Some(result)) => println!("{}", result),
+            Ok(None) => (),
+            Err(e) => println!("{}", e),
         }
     }
     database.save_data().unwrap();

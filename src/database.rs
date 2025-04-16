@@ -3,11 +3,11 @@ use serde::{Serialize, Deserialize};
 use std::{
     option::Option,
     fs,
-    error::Error,
     io::{Read, Write}
 };
 
 use bincode;
+use serde_json::{Map, Value};
 
 use crate::wal::WALManager;
 use crate::wal::WALEntry;
@@ -57,76 +57,76 @@ impl Database {
         Ok(())
     }
 
-    pub fn insert(&mut self, key : String, value: String) -> Option<String> {
+    pub fn insert(&mut self, key : String, value: Value) -> Result<Option<Value>, DatabaseError> {
         if self.current_session.is_none() {
-            return None
+            return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
 
         match self.state {
-            DatabaseState::Unselected() => None,
+            DatabaseState::Unselected() => Err(DatabaseError::CollectionError("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
                 let entry = WALEntry::new(self.collections[collection].name.clone(),"INSERT".to_string(), key.clone(), Some(value.clone()));
                 entry.log(format!("{}/wal.log", self.path).as_str());
-                self.collections[collection].insert(key, value)
+                Ok(self.collections[collection].insert(key, value))
             },
         }
     }
 
-    pub fn get(&self, key : String) -> Option<String> {
+    pub fn get(&self, key : String) -> Result<Option<Value>, DatabaseError> {
         if self.current_session.is_none() {
-            return None
+            return Err(DatabaseError::UserError("Login to access the database".to_string()))
         }
 
         match self.state {
-            DatabaseState::Unselected() => Some("Select a collection".to_string()),
+            DatabaseState::Unselected() => Err(DatabaseError::Other("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
                 let entry = WALEntry::new(self.collections[collection].name.clone(), "GET".to_string(), key.clone(), None); 
                 entry.log(format!("{}/wal.log", self.path).as_str());
-                self.collections[collection].get(key)
+                Ok(self.collections[collection].get(key))
             },
         }
     }
 
-    pub fn delete(&mut self, key: String) -> Option<String> {
+    pub fn delete(&mut self, key: String) -> Result<Option<Value>, DatabaseError> {
         if self.current_session.is_none() {
-            return None
+            return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
         match self.state {
-            DatabaseState::Unselected() => None,
+            DatabaseState::Unselected() => Err(DatabaseError::CollectionError("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
                 let entry = WALEntry::new(self.collections[collection].name.clone(),"DELETE".to_string(), key.clone(), None); 
                 entry.log(format!("{}/wal.log", self.path).as_str());
-                self.collections[collection].delete(key)
+                Ok(self.collections[collection].delete(key))
             },
         }
     }
 
-    fn select(&mut self, collection: String) -> Option<String> {
+    fn select(&mut self, collection: String) -> Result<Option<Value>, DatabaseError> {
         if self.current_session.is_none() {
-            return None
+            return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
-        match self.find_collection_by_name(collection) {
+        match self.find_collection_by_name(&collection) {
             Some(index) => {
                 self.state = DatabaseState::SelectedCollection(index);
-                Some(index.to_string())
+                Ok(None)
+                //Ok(Some(serde_json::from_str(format!("{} selected", &collection).as_str())?))
             },
-            None => None,
+            None => Ok(None),
         }
     }
 
-    pub fn new_collection(&mut self, name: String) -> Option<String> {
+    pub fn new_collection(&mut self, name: &String) -> Result<Option<Value>, DatabaseError> {
         if self.current_session.is_none() {
-            return None
+            return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
         let collection = Collection::new(name.clone());
         self.collections.push(collection);
-        println!("{}", self.path.clone());
         fs::File::create(format!("{}/{}.db", self.path, name)).unwrap();
-        None
+        Ok(None)
     }
 
-    pub fn find_collection_by_name(&self, name: String) -> Option<usize> {
-        Some(self.collections.iter().position(|c| c.name == name)?)
+    pub fn find_collection_by_name(&self, name: &String) -> Option<usize> {
+        Some(self.collections.iter().position(|c| &c.name == name)?)
     }
 
     pub fn save_data(&self) -> Result<(), DatabaseError> {
@@ -207,14 +207,14 @@ impl Database {
         Ok(database)
     }
 
-    pub fn operate_db(&mut self, command: Command) -> Option<String>{
+    pub fn operate_db(&mut self, command: Command) -> Result<Option<Value>, DatabaseError> {
         match command {
             Command::INSERT(key, value) => self.insert(key, value),
             Command::GET(key) => self.get(key),
             Command::DELETE(key) => self.delete(key),
             Command::SELECT(key) => self.select(key),
-            Command::NEW(key) => self.new_collection(key),
-            Command::ERROR() => None,
+            Command::NEW(key) => self.new_collection(&key),
+            Command::ERROR() => Err(DatabaseError::Other("syntax error".to_string())),
         }
     }
 }
