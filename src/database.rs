@@ -52,8 +52,8 @@ impl Database {
         Ok(())
     }
 
-    pub fn new_user(&mut self, username: String, password: String, permissions: Permissions) -> Result<(), DatabaseError> {
-        self.auth_manager.new_user(&self.path, username, password, permissions);
+    pub fn new_user(&mut self, username: &String, password: &String, permissions: Permissions) -> Result<(), DatabaseError> {
+        self.auth_manager.new_user(&self.path, username, password, permissions).unwrap();
         Ok(())
     }
 

@@ -61,18 +61,17 @@ impl AuthManager {
         }
     }
     
-    pub fn new_user(&mut self, path: &String, username : String, password: String, permissions: Permissions) -> Result<(), DatabaseError> {
+    pub fn new_user(&mut self, path: &String, username : &String, password: &String, permissions: Permissions) -> Result<(), DatabaseError> {
         let password_hash = hash(password, DEFAULT_COST)?;
-        if self.users.get(&username).is_some() {
+        if self.users.get(username).is_some() {
             return Err(DatabaseError::UserError("Username already taken".to_string()))
         }
 
         let user = User{ username : username.clone(), password_hash, permissions };
-        self.users.insert(username, user);
+        self.users.insert(username.to_string(), user);
 
         // might eventually move this
         let encoded : Vec<u8> = bincode::serialize(&self)?;
-        println!("{:#?}", self);
 
         let mut file = OpenOptions::new()
             .write(true)
