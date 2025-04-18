@@ -7,13 +7,12 @@ mod session;
 mod errors;
 mod cli;
 
-use crate::parser::{Command, Parser};
+use crate::parser::Parser;
 use crate::database::Database;
 use crate::auth::Permissions;
 use crate::cli::CLI;
 
 fn main() {
-
     let (username, password, dir, new_user) = CLI::get_args();
 
     //let mut database = Database::new("data".to_string());
@@ -22,6 +21,7 @@ fn main() {
     if new_user {
         database.new_user(&username, &password, Permissions::User()).unwrap();
     }
+
     match database.login(username.to_string(), password.to_string()) {
         Ok(val) => val,
         Err(e) => {

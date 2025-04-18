@@ -41,7 +41,7 @@ impl CLI {
                 break
             }
 
-            let command = parser.parse(input.trim().to_string());
+            let command = parser.get_command(&input.trim());
             let result = database.operate_db(command);
             match result {
                 Ok(Some(result)) => println!("{}", result),
