@@ -4,6 +4,7 @@ use std::io;
 
 #[derive(Debug)]
 pub enum DatabaseError {
+    SyntaxError(String),
     PermissionDenied(String),
     CollectionNotFound(String),
     UserError(String),
@@ -16,6 +17,7 @@ pub enum DatabaseError {
 impl fmt::Display for DatabaseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DatabaseError::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg),
             DatabaseError::CollectionNotFound(name) => write!(f, "Collection not found: {}", name),
             DatabaseError::PermissionDenied(permission) => write!(f, "Permission not high enough: {}", permission),
             DatabaseError::UserError(error) => write!(f, "Login Error: {}", error), 

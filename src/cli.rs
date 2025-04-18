@@ -42,10 +42,15 @@ impl CLI {
             }
 
             let command = parser.get_command(&input.trim());
-            let result = database.operate_db(command);
-            match result {
-                Ok(Some(result)) => println!("{}", result),
-                Ok(None) => (),
+            match command { 
+                Ok(command) => {
+                    let result = database.operate_db(command);
+                    match result {
+                        Ok(Some(result)) => println!("{}", result),
+                        Ok(None) => (),
+                        Err(e) => println!("{}", e),
+                    }
+                    }
                 Err(e) => println!("{}", e),
             }
         }
