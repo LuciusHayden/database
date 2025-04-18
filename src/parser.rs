@@ -25,7 +25,6 @@ pub enum Token {
     NEW, 
     IDENTIFIER(String),
     JSON(Value),
-    NONE(),
 
 }
 impl Parser {
@@ -45,14 +44,14 @@ impl Parser {
                 if let (Some(Token::IDENTIFIER(key)), Some(Token::JSON(value))) = (tokens.get(1), tokens.get(2)) {
                     Ok(Command::INSERT(key.clone(), value.clone()))
                 } else {
-                    Err(DatabaseError::SyntaxError("".to_string()))
+                    Err(DatabaseError::SyntaxError("Missing identifier or json".to_string()))
                 }
             }
             Some(Token::GET) => {
                 if let Some(Token::IDENTIFIER(key)) = tokens.get(1) {
                     Ok(Command::GET(key.clone()))
                 } else {
-                    Err(DatabaseError::SyntaxError("".to_string()))
+                    Err(DatabaseError::SyntaxError("Missing identifier".to_string()))
                 }
             }
             Some(Token::DELETE) => {
@@ -66,17 +65,17 @@ impl Parser {
                 if let Some(Token::IDENTIFIER(name)) = tokens.get(1) {
                     Ok(Command::SELECT(name.clone()))
                 } else {
-                    Err(DatabaseError::SyntaxError("".to_string()))
+                    Err(DatabaseError::SyntaxError("Missing Identifier".to_string()))
                 }
             }
             Some(Token::NEW) => {
                 if let Some(Token::IDENTIFIER(name)) = tokens.get(1) {
                     Ok(Command::NEW(name.clone()))
                 } else {
-                    Err(DatabaseError::SyntaxError("".to_string()))
+                    Err(DatabaseError::SyntaxError("Missing Identifier".to_string()))
                 }
             }
-            _ => Err(DatabaseError::SyntaxError("".to_string())),
+            _ => Err(DatabaseError::SyntaxError("Unknown command".to_string())),
         }
     }
 
@@ -111,7 +110,7 @@ impl Parser {
     }
 
     fn lex_insert(input: &str) -> Result<Option<(String, String, Option<serde_json::Value>)>, DatabaseError> {
-        let mut parts = input.trim().splitn(3, ' '); // only split into 3 parts
+        let mut parts = input.trim().splitn(3, ' '); 
         let cmd = parts.next().ok_or(DatabaseError::SyntaxError("".to_string()))?;
         let collection = parts.next().ok_or(DatabaseError::SyntaxError("".to_string()))?;
         let json_str = parts.next();
@@ -119,8 +118,8 @@ impl Parser {
         let mut json_value = None;
 
         if json_str.is_some() {
-            json_value= serde_json::from_str(json_str.unwrap()).ok();
-        }
+            json_value = serde_json::from_str(json_str.unwrap()).ok();
+        } 
         Ok(Some((cmd.to_string(), collection.to_string(), json_value)))
     }
 }

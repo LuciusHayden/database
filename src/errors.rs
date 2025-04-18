@@ -4,6 +4,7 @@ use std::io;
 
 #[derive(Debug)]
 pub enum DatabaseError {
+    ValueNotFound(String),
     SyntaxError(String),
     PermissionDenied(String),
     CollectionNotFound(String),
@@ -17,6 +18,7 @@ pub enum DatabaseError {
 impl fmt::Display for DatabaseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DatabaseError::ValueNotFound(msg) => write!(f, "Value not found: {}", msg),
             DatabaseError::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg),
             DatabaseError::CollectionNotFound(name) => write!(f, "Collection not found: {}", name),
             DatabaseError::PermissionDenied(permission) => write!(f, "Permission not high enough: {}", permission),
@@ -52,6 +54,6 @@ impl From<bcrypt::BcryptError> for DatabaseError {
 
 impl From<serde_json::Error> for DatabaseError {
     fn from( err: serde_json::Error) -> Self {
-        DatabaseError::Other(format!("serde_json: {}", err))
+        DatabaseError::Other(format!("incorrect json"))
     }
 }

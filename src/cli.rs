@@ -46,14 +46,15 @@ impl CLI {
                 Ok(command) => {
                     let result = database.operate_db(command);
                     match result {
-                        Ok(Some(result)) => println!("{}", result),
-                        Ok(None) => (),
+                        Ok(serde_json::Value::Null) => (),
+                        Ok(result) => println!("{}", result),
                         Err(e) => println!("{}", e),
                     }
                     }
                 Err(e) => println!("{}", e),
             }
         }
+        println!("Saving");
         database.save_data().unwrap();
 
     }
