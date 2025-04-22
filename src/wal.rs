@@ -2,7 +2,6 @@ use serde::{Serialize, Deserialize};
 
 use std::{
     fs,
-    io::{Write, Read},
 };
 
 use bincode::deserialize_from;
@@ -10,7 +9,6 @@ use serde_json::Value;
 use std::io::BufReader;
 
 use crate::parser::Command;
-use crate::database::Database;
 use crate::errors::DatabaseError;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -61,17 +59,17 @@ impl WALManager {
         WALManager{ path }
     }
 
-    pub fn operate(&self, command: Command, collection: String) -> Option<WALEntry> {
-        let entry = match command {
-            Command::INSERT(key, value) => Some(WALEntry::new(collection, "INSERT".to_string(), key, Some(value))),
-            Command::GET(key) => Some(WALEntry::new(collection, "GET".to_string(), key, None)),
-            Command::DELETE(key) => Some(WALEntry::new(collection, "DELETE".to_string(), key, None)),
-            _ => None,
-        };
-
-        entry.as_ref().unwrap().log(self.path.as_str());
-        entry
-    }
+    //pub fn operate(&self, command: Command, collection: String) -> Option<WALEntry> {
+    //    let entry = match command {
+    //        Command::INSERT(key, value) => Some(WALEntry::new(collection, "INSERT".to_string(), key, Some(value))),
+    //        Command::GET(key) => Some(WALEntry::new(collection, "GET".to_string(), key, None)),
+    //        Command::DELETE(key) => Some(WALEntry::new(collection, "DELETE".to_string(), key, None)),
+    //        _ => None,
+    //    };
+    //
+    //    entry.as_ref().unwrap().log(self.path.as_str());
+    //    entry
+    //}
 
     pub fn read_wal_log(&self) -> Result<Vec<WALEntry>, DatabaseError> { 
         let log = fs::OpenOptions::new()

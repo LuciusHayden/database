@@ -1,5 +1,4 @@
-use crate::database::Database;
-use crate::auth::{User, Permissions};
+use crate::auth::Permissions;
 
 use serde::{Serialize, Deserialize};
 

@@ -7,7 +7,7 @@ use std::{
 };
 
 use bincode;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::wal::WALManager;
 use crate::wal::WALEntry;
@@ -70,6 +70,10 @@ impl Database {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
 
+        if &self.current_session.as_ref().unwrap().permissions == &Permissions::Guest() {
+            return Err(DatabaseError::PermissionDenied("Guest permissions cannot write data".to_string()))
+        }
+
         match self.state {
             DatabaseState::Unselected() => Err(DatabaseError::CollectionError("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
@@ -101,6 +105,9 @@ impl Database {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
+        if &self.current_session.as_ref().unwrap().permissions == &Permissions::Guest() {
+            return Err(DatabaseError::PermissionDenied("Guest permissions cannot write data".to_string()))
+        }
         match self.state {
             DatabaseState::Unselected() => Err(DatabaseError::CollectionError("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
@@ -131,6 +138,9 @@ impl Database {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
+        if &self.current_session.as_ref().unwrap().permissions == &Permissions::Guest() {
+            return Err(DatabaseError::PermissionDenied("Guest permissions cannot write data".to_string()))
+        }
         let collection = Collection::new(name.clone());
         self.collections.push(collection);
         fs::File::create(format!("{}/{}.db", self.path, name))?;
@@ -142,6 +152,10 @@ impl Database {
     }
 
     pub fn save_data(&mut self) -> Result<(), DatabaseError> {
+        if &self.current_session.as_ref().unwrap().permissions == &Permissions::Guest() {
+            return Err(DatabaseError::PermissionDenied("Guest permissions cannot write data".to_string()))
+        }
+
         self.write_and_clear_wal_log().unwrap();
         fs::create_dir_all(self.path.clone())?;
         for collection in &self.collections {

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::errors::DatabaseError;
 use crate::session::Session;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Permissions {
     Admin(),
     User(),

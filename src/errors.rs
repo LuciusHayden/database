@@ -53,7 +53,7 @@ impl From<bcrypt::BcryptError> for DatabaseError {
 }
 
 impl From<serde_json::Error> for DatabaseError {
-    fn from( err: serde_json::Error) -> Self {
+    fn from( _err: serde_json::Error) -> Self {
         DatabaseError::Other(format!("incorrect json"))
     }
 }
