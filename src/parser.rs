@@ -14,6 +14,7 @@ pub enum Command {
     DELETE(String),
     SELECT(String),
     NEW(String),
+    WHICH(String),
     ERROR(),
 }
 
@@ -22,6 +23,7 @@ pub enum Token {
     GET,
     DELETE,
     SELECT,
+    WHICH,
     NEW, 
     IDENTIFIER(String),
     JSON(Value),
@@ -75,6 +77,13 @@ impl Parser {
                     Err(DatabaseError::SyntaxError("Missing Identifier".to_string()))
                 }
             }
+            Some(Token::WHICH) => {
+                if let Some(Token::IDENTIFIER(name)) = tokens.get(1) {
+                    Ok(Command::WHICH(name.clone()))
+                } else {
+                    Err(DatabaseError::SyntaxError("Missing Identifier".to_string()))
+                }
+            }
             _ => Err(DatabaseError::SyntaxError("Unknown command".to_string())),
         }
     }
@@ -91,6 +100,7 @@ impl Parser {
                 "DELETE" => Token::DELETE,
                 "SELECT" => Token::SELECT,
                 "NEW" => Token::NEW,
+                "WHICH" => Token::WHICH,
                 _ => return Err(DatabaseError::SyntaxError("Unknown command".to_string())),
             };
 
@@ -105,7 +115,7 @@ impl Parser {
             return Ok(results)
 
         }
-        Err(DatabaseError::SyntaxError("".to_string()))
+        Err(DatabaseError::SyntaxError("lexer".to_string()))
 
     }
 

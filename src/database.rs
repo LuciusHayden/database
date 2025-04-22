@@ -147,6 +147,23 @@ impl Database {
         Ok(Response::Message(format!("{} created", name)))
     }
 
+    pub fn which(&self, key: String) -> Result<Response, DatabaseError> {
+        if self.current_session.is_none() {
+            return Err(DatabaseError::UserError("Login to access the database".to_string())) 
+        }
+
+        if key == "collection".to_string() {
+            match self.state {
+                DatabaseState::SelectedCollection(index) => return Ok(Response::Message(format!("{} selected", self.collections.get(index).unwrap().name))),
+                DatabaseState::Unselected() => return Err(DatabaseError::CollectionError("Select a collection".to_string()))
+            }
+        };
+        if key == "path".to_string() {
+            return Ok(Response::Message(self.path.clone()))
+        };
+        Err(DatabaseError::ValueNotFound(format!("{} invalid", key)))
+    }
+
     pub fn find_collection_by_name(&self, name: &String) -> Option<usize> {
         Some(self.collections.iter().position(|c| &c.name == name)?)
     }
@@ -225,6 +242,7 @@ impl Database {
             Command::DELETE(key) => self.delete(key),
             Command::SELECT(key) => self.select(key),
             Command::NEW(key) => self.new_collection(&key),
+            Command::WHICH(key) => self.which(key),
             Command::ERROR() => Err(DatabaseError::Other("syntax error".to_string())),
         }
     }
