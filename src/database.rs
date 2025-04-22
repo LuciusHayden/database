@@ -23,6 +23,12 @@ enum DatabaseState {
     Unselected(),
 }
 
+#[derive(Debug)]
+pub enum Response {
+    Message(String),
+    Value(Value),
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Database {
     path: String,
@@ -49,6 +55,8 @@ impl Database {
     pub fn login(&mut self, username: String, password: String) -> Result<(), DatabaseError> {
         let session = self.auth_manager.login(username, password)?;
         self.current_session = Some(session);
+        self.write_and_clear_wal_log()?;
+        self.state = DatabaseState::Unselected();
         Ok(())
     }
 
@@ -57,7 +65,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn insert(&mut self, key : String, value: Value) -> Result<Value, DatabaseError> {
+    pub fn insert(&mut self, key : String, value: Value) -> Result<Response, DatabaseError> {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
@@ -68,12 +76,12 @@ impl Database {
                 let entry = WALEntry::new(self.collections[collection].name.clone(),"INSERT".to_string(), key.clone(), Some(value.clone()));
                 entry.log(format!("{}/wal.log", self.path).as_str());
                 self.collections[collection].insert(key.clone(), value);
-                Ok(Value::Null)
+                Ok(Response::Value(Value::Null))
             },
         }
     }
 
-    pub fn get(&self, key : String) -> Result<Value, DatabaseError> {
+    pub fn get(&self, key : String) -> Result<Response, DatabaseError> {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string()))
         }
@@ -81,17 +89,15 @@ impl Database {
         match self.state {
             DatabaseState::Unselected() => Err(DatabaseError::CollectionError("Select a collection".to_string())),
             DatabaseState::SelectedCollection(collection) => {
-                let entry = WALEntry::new(self.collections[collection].name.clone(), "GET".to_string(), key.clone(), None); 
-                entry.log(format!("{}/wal.log", self.path).as_str());
                 match self.collections[collection].get(key.clone()) {
-                    Some(value) => Ok(value),
+                    Some(value) => Ok(Response::Value(value)),
                     None => Err(DatabaseError::ValueNotFound(key))
                 }
             },
         }
     }
 
-    pub fn delete(&mut self, key: String) -> Result<Value, DatabaseError> {
+    pub fn delete(&mut self, key: String) -> Result<Response, DatabaseError> {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
@@ -101,42 +107,43 @@ impl Database {
                 let entry = WALEntry::new(self.collections[collection].name.clone(),"DELETE".to_string(), key.clone(), None); 
                 entry.log(format!("{}/wal.log", self.path).as_str());
                 match self.collections[collection].delete(key.clone()) {
-                    Some(value) => Ok(value),
+                    Some(value) => Ok(Response::Value(value)),
                     None => Err(DatabaseError::ValueNotFound(key))
                 }
             },
         }
     }
 
-    fn select(&mut self, collection: String) -> Result<Value, DatabaseError> {
+    pub fn select(&mut self, collection: String) -> Result<Response, DatabaseError> {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
         match self.find_collection_by_name(&collection) {
             Some(index) => {
                 self.state = DatabaseState::SelectedCollection(index);
-                Ok(serde_json::from_str(format!("{} selected", &collection).as_str())?)
+                Ok(Response::Message(format!("{} selected", collection)))
             },
             None => Err(DatabaseError::CollectionNotFound(collection))
         }
     }
 
-    pub fn new_collection(&mut self, name: &String) -> Result<Value, DatabaseError> {
+    pub fn new_collection(&mut self, name: &String) -> Result<Response, DatabaseError> {
         if self.current_session.is_none() {
             return Err(DatabaseError::UserError("Login to access the database".to_string())) 
         }
         let collection = Collection::new(name.clone());
         self.collections.push(collection);
         fs::File::create(format!("{}/{}.db", self.path, name))?;
-        Ok(serde_json::from_str(format!("{} created", name).as_str())?)
+        Ok(Response::Message(format!("{} created", name)))
     }
 
     pub fn find_collection_by_name(&self, name: &String) -> Option<usize> {
         Some(self.collections.iter().position(|c| &c.name == name)?)
     }
 
-    pub fn save_data(&self) -> Result<(), DatabaseError> {
-        let _ = fs::create_dir_all(self.path.clone());
+    pub fn save_data(&mut self) -> Result<(), DatabaseError> {
+        self.write_and_clear_wal_log().unwrap();
+        fs::create_dir_all(self.path.clone())?;
         for collection in &self.collections {
             let encoded : Vec<u8> = bincode::serialize(&collection)?;
             let mut file = fs::OpenOptions::new()
@@ -145,14 +152,6 @@ impl Database {
 
             file.write_all(&encoded)?;
         }
-
-        // clear the WAL 
-        let mut wal = fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(format!("{}/wal.log", self.path.clone()))?;
-
-        wal.flush()?;
 
         Ok(())
     }
@@ -171,7 +170,10 @@ impl Database {
                 file.read_to_end(&mut contents)?;
                 let collection : Collection = match bincode::deserialize(&contents) {
                     Ok(collection) => collection,
-                    Err(_) => Collection::new(path.file_stem().unwrap().to_str().unwrap().to_string()),
+                    Err(e) => {
+                        println!("{}", e);
+                        Collection::new(path.file_stem().unwrap().to_str().unwrap().to_string())
+                    }
                 };
                 collections.push(collection);
             }
@@ -189,7 +191,7 @@ impl Database {
             return Ok(Database::new(path.clone()))
         }
 
-        let mut database = Database{ 
+        let database = Database{ 
             collections, 
             path: path.clone(), 
             auth_manager, 
@@ -198,21 +200,11 @@ impl Database {
             current_session: None,
         };
 
-        let logs = database.wal_manager.read_wal_log();
-
-        if logs.is_some() {
-            for log in logs.expect("wal.log is not empty") { 
-                database.select(log.collection.clone())?;
-                let operation = log.convert_to_operation();
-                database.operate_db(operation)?;
-            }
-        }
-        database.state = DatabaseState::Unselected();
 
         Ok(database)
     }
 
-    pub fn operate_db(&mut self, command: Command) -> Result<Value, DatabaseError> {
+    pub fn operate_db(&mut self, command: Command) -> Result<Response, DatabaseError> {
         match command {
             Command::INSERT(key, value) => self.insert(key, value),
             Command::GET(key) => self.get(key),
@@ -221,6 +213,26 @@ impl Database {
             Command::NEW(key) => self.new_collection(&key),
             Command::ERROR() => Err(DatabaseError::Other("syntax error".to_string())),
         }
+    }
+
+    pub fn write_and_clear_wal_log(&mut self) -> Result<(), DatabaseError> {
+        let logs = self.wal_manager.read_wal_log();
+        if logs.is_ok() {
+            for log in logs.expect("wal.log is not empty") { 
+                self.select(log.collection.clone()).unwrap();
+                let operation = log.convert_to_operation();
+                self.operate_db(operation).unwrap();
+            }
+        }
+
+        // clear the WAL 
+        let mut wal = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(format!("{}/wal.log", &self.path))?;
+
+        wal.flush()?;
+        Ok(())
     }
 }
 

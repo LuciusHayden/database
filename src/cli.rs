@@ -4,6 +4,7 @@ use std::io::{self, Write};
 
 use crate::parser::Parser as ReplParser;
 use crate::database::Database;
+use crate::database::Response;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -46,8 +47,9 @@ impl CLI {
                 Ok(command) => {
                     let result = database.operate_db(command);
                     match result {
-                        Ok(serde_json::Value::Null) => (),
-                        Ok(result) => println!("{}", result),
+                        Ok(Response::Value(serde_json::Value::Null)) => (),
+                        Ok(Response::Value(result)) => println!("{}", result),
+                        Ok(Response::Message(message)) => println!("{}", message),
                         Err(e) => println!("{}", e),
                     }
                     }

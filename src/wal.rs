@@ -5,23 +5,27 @@ use std::{
     io::{Write, Read},
 };
 
-use bincode;
+use bincode::deserialize_from;
 use serde_json::Value;
+use std::io::BufReader;
 
 use crate::parser::Command;
+use crate::database::Database;
+use crate::errors::DatabaseError;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WALEntry {
     pub collection: String,
     pub operation: String, 
     pub key: String,
-    pub value: Option<Value>,
+    // needs to be a String as bincode doesnt work with Json values
+    pub value: Option<String>,
 }
 
 impl WALEntry {
 
     pub fn new(collection: String, operation: String, key: String, value: Option<Value>) -> WALEntry {
-        WALEntry {collection, operation, key, value}
+        WALEntry {collection, operation, key, value: serde_json::to_string(&value.unwrap()).ok() }
     }
 
     pub fn log(&self, path: &str) {
@@ -31,13 +35,13 @@ impl WALEntry {
             .open(path)
             .unwrap();
 
-        let encoded : Vec<u8> = bincode::serialize(self).unwrap();
-        file.write_all(&encoded).unwrap();
+        bincode::serialize_into(&mut file, self).unwrap();
     }
 
     pub fn convert_to_operation(&self) -> Command {
+        println!("{}", serde_json::from_str::<Value>(&self.value.as_ref().unwrap()).unwrap());
         match self.operation.as_str() {
-            "INSERT" => Command::INSERT(self.key.to_string(), self.value.clone().unwrap()),
+            "INSERT" => Command::INSERT(self.key.to_string(), serde_json::from_str(&self.value.as_ref().unwrap()).unwrap()),
             "GET" => Command::GET(self.key.to_string()),
             "DELETE" => Command::DELETE(self.key.to_string()),
             _ => Command::ERROR(),
@@ -69,19 +73,22 @@ impl WALManager {
         entry
     }
 
-    pub fn read_wal_log(&self) -> Option<Vec<WALEntry>> { 
-        let mut log = fs::OpenOptions::new()
+    pub fn read_wal_log(&self) -> Result<Vec<WALEntry>, DatabaseError> { 
+        let log = fs::OpenOptions::new()
             .read(true)
             .open(format!("{}/wal.log", self.path))
             .unwrap();
 
-        let mut contents = Vec::new();
-        log.read_to_end(&mut contents).unwrap();
 
-        match bincode::deserialize(&contents) {
-            Ok(data) => Some(data),
-            Err(_) => None, 
+        let mut contents = BufReader::new(log);
+        let mut entries = Vec::new();
+
+        while let Ok(entry) = deserialize_from::<_, WALEntry>(&mut contents) {
+            entries.push(entry);
         }
+
+        Ok(entries)
+
     }
 }
 
