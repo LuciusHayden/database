@@ -8,10 +8,10 @@ Authentication / Sessions
 
 Custom errors 
 
-Command Line Interface (its meh)
+Command Line Interface 
 
 
-# currently supported operations 
+# currently supported operations (commands are non case sensitive)
 INSERT (key) (value)
 
 GET (key)
@@ -19,6 +19,10 @@ GET (key)
 DELETE (key)
 
 SELECT (collection)
+
+NEW (collection)
+
+WHICH (collection/path/user)
 
 
 # CLI arguments
