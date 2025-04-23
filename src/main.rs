@@ -15,8 +15,8 @@ use crate::cli::CLI;
 fn main() {
     let (username, password, dir, new_user) = CLI::get_args();
 
-    //let mut database = Database::new("data".to_string());
-    let mut database = Database::load_data(dir).unwrap();
+    // loads database if that directory already has a valid database
+    let mut database = Database::new(dir);
 
     if new_user {
         database.new_user(&username, &password, Permissions::User()).unwrap();

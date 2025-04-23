@@ -43,6 +43,7 @@ impl AuthManager {
             .open(format!("{}/users.log", path))?;
 
         file.write_all(&encoded)?;
+        std::mem::drop(file);
         Ok(manager)
     }
 

@@ -38,7 +38,7 @@ impl CLI {
             input.clear();
             io::stdin().read_line(&mut input).unwrap();
 
-            if input.trim().eq("EXIT") || input.trim().eq("QUIT") {
+            if input.trim().to_uppercase().eq("EXIT") || input.trim().to_uppercase().eq("QUIT") {
                 break
             }
 

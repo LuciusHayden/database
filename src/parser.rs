@@ -94,7 +94,7 @@ impl Parser {
 
         if result.is_some() {
             let result = result.unwrap();
-            let token_a = match result.0.as_str() {
+            let token_a = match result.0.to_uppercase().as_str() {
                 "INSERT" => Token::INSERT,
                 "GET" => Token::GET,
                 "DELETE" => Token::DELETE,

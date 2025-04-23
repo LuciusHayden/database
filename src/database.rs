@@ -41,14 +41,20 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: String) -> Database {
-        fs::create_dir_all(&path).unwrap();
-        Database { 
-            path: path.clone(),
-            wal_manager: WALManager::new(path.clone()),
-            auth_manager: AuthManager::new(path.as_str()).unwrap(),
-            collections : Vec::new(),
-            state: DatabaseState::Unselected(),
-            current_session: None,
+        match Database::load_data(path.clone()) {
+            Ok(database) => database,
+            Err(_) => {
+                fs::create_dir_all(&path).unwrap();
+                Database { 
+                    path: path.clone(),
+                    wal_manager: WALManager::new(path.clone()),
+                    auth_manager: AuthManager::new(path.as_str()).unwrap(),
+                    collections : Vec::new(),
+                    state: DatabaseState::Unselected(),
+                    current_session: None,
+                }
+
+            }
         }
     }
 
@@ -207,6 +213,7 @@ impl Database {
                     }
                 };
                 collections.push(collection);
+                std::mem::drop(file);
             }
         }
 
@@ -216,11 +223,8 @@ impl Database {
 
         let mut contents = Vec::new();
         file.read_to_end(&mut contents)?;
+        std::mem::drop(file);
         let auth_manager: AuthManager = bincode::deserialize(&contents)?;
-
-        if collections.is_empty() {
-            return Ok(Database::new(path.clone()))
-        }
 
         let database = Database{ 
             collections, 
@@ -264,6 +268,7 @@ impl Database {
             .open(format!("{}/wal.log", &self.path))?;
 
         wal.flush()?;
+        std::mem::drop(wal);
         Ok(())
     }
 }
