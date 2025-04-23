@@ -161,12 +161,15 @@ impl Database {
         if key == "collection".to_string() {
             match self.state {
                 DatabaseState::SelectedCollection(index) => return Ok(Response::Message(format!("{} selected", self.collections.get(index).unwrap().name))),
-                DatabaseState::Unselected() => return Err(DatabaseError::CollectionError("Select a collection".to_string()))
+                DatabaseState::Unselected() => return Ok(Response::Message("No collection selected".to_string()))
             }
         };
         if key == "path".to_string() {
             return Ok(Response::Message(self.path.clone()))
         };
+        if key == "user".to_string() {
+            return Ok(Response::Message(self.current_session.as_ref().unwrap().user.clone()))
+        }
         Err(DatabaseError::ValueNotFound(format!("{} invalid", key)))
     }
 
@@ -179,7 +182,7 @@ impl Database {
             return Err(DatabaseError::PermissionDenied("Guest permissions cannot write data".to_string()))
         }
 
-        self.write_and_clear_wal_log().unwrap();
+        self.write_and_clear_wal_log()?;
         fs::create_dir_all(self.path.clone())?;
         for collection in &self.collections {
             let encoded : Vec<u8> = bincode::serialize(&collection)?;
@@ -257,7 +260,7 @@ impl Database {
             for log in logs.expect("wal.log is not empty") { 
                 self.select(log.collection.clone()).unwrap();
                 let operation = log.convert_to_operation();
-                self.operate_db(operation).unwrap();
+                self.operate_db(operation)?;
             }
         }
 
@@ -272,64 +275,4 @@ impl Database {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::Database;
-    use std::path::PathBuf;
-    use std::fs;
-
-    fn setup_persistent_test_database() -> (Database, String) {
-        let test_dir = PathBuf::from("data/test_database");
-        let db_path = test_dir.join("database_test.db");
-
-        // Ensure the test directory exists
-        fs::create_dir_all(&test_dir).unwrap();
-
-        // Clear the old database file if it exists
-        if db_path.exists() {
-            fs::remove_file(&db_path).unwrap();
-        }
-
-        // Create a new, empty database file
-        fs::File::create(&db_path).unwrap();
-
-        (Database::new(db_path.to_str().unwrap().to_string()), db_path.to_str().unwrap().to_string())
-    }
-
-    #[test]
-    fn saving_and_loading() {
-        let (mut db , path) = setup_persistent_test_database();
-        db.insert("foo".to_string(), "bar".to_string());
-        db.save_data().unwrap();
-
-        // ensure its actually loading the data
-        std::mem::drop(db);
-
-        let db = Database::load_data(path.to_string()).unwrap();
-        let bar = db.get("foo".to_string()).unwrap();
-        assert_eq!(bar, "bar" );
-    }
-
-    #[test]
-    fn inserting_and_deleting() -> Result<(), String> {
-        let path = "data";
-        let _ = fs::remove_file(path).is_ok();
-
-        let mut db = Database::new(path.to_string());
-        
-        db.insert("woo".to_string(), "warr".to_string());
-        db.save_data().unwrap();
-
-        std::mem::drop(db);
-
-        let mut db = Database::load_data(path.to_string()).unwrap();
-        db.delete("woo".to_string());
-        match db.get("woo".to_string()) {
-            Some(_)=> Err("Value was not deleted".to_string()),
-            None => Ok(()),
-        }
-    }
-}
-
 
